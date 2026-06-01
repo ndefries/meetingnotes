@@ -189,6 +189,10 @@
 
 <!-- PAGES -->
 <div id="page-home" class="page active">
+  <div id="ai-unavailable-banner" style="display:none;margin:12px 16px 0;padding:12px 14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:10px;font-size:13px;line-height:1.6;">
+    <strong style="color:var(--warn);">⚡ AI summarisation unavailable</strong><br>
+    <span style="color:var(--text2);">Recording, notes and the task board all work here. For AI summaries, clone the repo and run <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">.\start.ps1</code> locally.</span>
+  </div>
   <div class="header">
     <h1>Meetings</h1>
     <button class="btn btn-primary btn-sm" onclick="startNewMeeting()">
@@ -527,14 +531,14 @@ async function saveToServer() {
   } catch(_) {} // silent — localStorage is the fallback
 }
 async function loadFromServer() {
+  if (!isLocal) return; // on GitHub Pages — use localStorage only
   try {
     const res = await fetch('/api/appdata');
     if (!res.ok) return;
     const data = await res.json();
-    // Merge server data with localStorage — server wins (more up to date across sessions)
     if (data.meetings?.length) { meetings = data.meetings; localStorage.setItem('mnapp_meetings', JSON.stringify(meetings)); }
     if (data.tasks?.length)    { tasks    = data.tasks;    localStorage.setItem('mnapp_tasks',    JSON.stringify(tasks)); }
-  } catch(_) {} // offline or server not started yet — use localStorage
+  } catch(_) {} // server not started — use localStorage
 }
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────
@@ -772,6 +776,12 @@ function updateTranscriptDisplay() {
 
 // ── AI SUMMARISATION ──────────────────────────────────────────────────────
 async function summariseWithAI(text, title, meetingId) {
+  if (!isLocal) {
+    showSummariseError(meetingId,
+      'AI summarisation requires the local server.\n\nClone the repo and run .\\start.ps1, then open http://localhost:8080/meeting-notes.html to use AI features.',
+      text, title);
+    return;
+  }
   const meeting = meetings.find(m => m.id === meetingId);
 
   // Timeout: if no response in 30s, show error
@@ -1176,17 +1186,35 @@ function closeTaskModal(e) {
   editingTaskId = null;
 }
 
+// ── SERVER DETECTION ──────────────────────────────────────────────────────
+const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+
+function showAIUnavailableBanner() {
+  const banner = document.getElementById('ai-unavailable-banner');
+  if (banner) banner.style.display = '';
+}
+function hideAIUnavailableBanner() {
+  const banner = document.getElementById('ai-unavailable-banner');
+  if (banner) banner.style.display = 'none';
+}
+
 // ── SETUP WIZARD ──────────────────────────────────────────────────────────
 async function checkSetup() {
+  if (!isLocal) {
+    // Running on GitHub Pages or remote — AI not available, that's fine
+    showAIUnavailableBanner();
+    return;
+  }
   try {
     const res = await fetch('/api/status');
     const { ready } = await res.json();
+    hideAIUnavailableBanner();
     if (!ready) {
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.getElementById('page-setup').classList.add('active');
     }
   } catch(_) {
-    // Server not running — app loads anyway, errors surface on first action
+    showAIUnavailableBanner();
   }
 }
 
