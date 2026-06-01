@@ -1,0 +1,4 @@
+node_modules/
+meetings/
+config.json
+package-lock.json

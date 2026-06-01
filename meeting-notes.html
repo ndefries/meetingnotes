@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Meeting Notes & Tasks</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3250;
+    --accent: #6c63ff;
+    --accent2: #a78bfa;
+    --text: #e8eaf0;
+    --text2: #9499b7;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warn: #f59e0b;
+    --todo: #3b82f6;
+    --doing: #f59e0b;
+    --done: #22c55e;
+    --radius: 12px;
+    --shadow: 0 4px 24px rgba(0,0,0,0.4);
+  }
+
+  /* ── THEME SWATCHES ── */
+  .theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 10px; margin-top: 8px; }
+  .theme-swatch { border-radius: 10px; overflow: hidden; cursor: pointer; border: 2px solid transparent; transition: border-color .2s, transform .15s; aspect-ratio: 1; display: flex; flex-direction: column; }
+  .theme-swatch:hover { transform: scale(1.05); }
+  .theme-swatch.active { border-color: white; box-shadow: 0 0 0 3px rgba(255,255,255,.3); }
+  .swatch-bg { flex: 1; }
+  .swatch-card { height: 30%; margin: 4px; border-radius: 4px; }
+  .swatch-label { font-size: 10px; text-align: center; padding: 3px 2px; font-weight: 600; }
+
+  .color-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
+  .color-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--text2); }
+  .color-pick input[type=color] { width: 44px; height: 36px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; background: none; padding: 2px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100dvh; overflow-x: hidden; }
+
+  /* NAV */
+  nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 100; padding-bottom: env(safe-area-inset-bottom); }
+  nav button { flex: 1; background: none; border: none; color: var(--text2); padding: 12px 4px 10px; font-size: 11px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; transition: color .2s; }
+  nav button.active { color: var(--accent2); }
+  nav button svg { width: 22px; height: 22px; }
+
+  /* PAGES */
+  .page { display: none; flex-direction: column; min-height: 100dvh; padding-bottom: 70px; }
+  .page.active { display: flex; }
+
+  /* HEADER */
+  .header { padding: 20px 16px 12px; display: flex; align-items: center; gap: 12px; background: var(--bg); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--border); }
+  .header h1 { font-size: 20px; font-weight: 700; flex: 1; }
+  .header .badge { background: var(--accent); color: #fff; border-radius: 20px; padding: 2px 10px; font-size: 12px; font-weight: 600; }
+
+  /* BUTTONS */
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #5b54e0; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--border); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .card + .card { margin-top: 10px; }
+
+  /* MEETING LIST */
+  .meetings-list { padding: 16px; flex: 1; }
+  .meeting-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 10px; cursor: pointer; transition: border-color .2s; }
+  .meeting-card:hover { border-color: var(--accent); }
+  .meeting-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .meeting-card .meta { font-size: 12px; color: var(--text2); display: flex; gap: 12px; }
+  .meeting-card .actions-count { background: var(--accent); color: #fff; border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 600; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text2); }
+  .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: .4; }
+  .empty-state p { font-size: 15px; }
+
+  /* RECORD PAGE */
+  #page-record { padding: 20px 16px 80px; gap: 16px; }
+  .record-controls { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .record-btn { width: 80px; height: 80px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 32px; transition: all .3s; box-shadow: var(--shadow); }
+  .record-btn.idle { background: var(--accent); }
+  .record-btn.recording { background: var(--danger); animation: pulse 1.5s infinite; }
+  .record-btn.paused { background: var(--warn); }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); } 50% { box-shadow: 0 0 0 16px rgba(239,68,68,0); } }
+  .record-timer { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 2px; }
+  .record-status { font-size: 13px; color: var(--text2); }
+  .transcript-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; min-height: 180px; max-height: 40vh; overflow-y: auto; font-size: 14px; line-height: 1.7; color: var(--text); position: relative; }
+  .transcript-box .interim { color: var(--text2); font-style: italic; }
+  .transcript-placeholder { color: var(--text2); font-size: 14px; }
+  .meeting-title-input { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-size: 15px; color: var(--text); outline: none; }
+  .meeting-title-input:focus { border-color: var(--accent); }
+  label { font-size: 13px; color: var(--text2); margin-bottom: 6px; display: block; font-weight: 500; }
+  .row { display: flex; gap: 10px; }
+
+  /* SUMMARY PAGE */
+  #page-summary { overflow-y: auto; }
+  .summary-content { padding: 16px; }
+  .summary-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+  .actions-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  .actions-table th { background: var(--surface2); color: var(--text2); padding: 8px 10px; text-align: left; font-weight: 600; font-size: 12px; border-bottom: 1px solid var(--border); }
+  .actions-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .actions-table tr:last-child td { border-bottom: none; }
+  .actions-table input, .actions-table select { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 5px 8px; font-size: 12px; width: 100%; outline: none; }
+  .actions-table input:focus, .actions-table select:focus { border-color: var(--accent); }
+  .table-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  .section-title { font-size: 16px; font-weight: 700; margin: 20px 0 10px; display: flex; align-items: center; gap: 8px; }
+  .add-action-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .loading-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 60px 20px; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { color: var(--text2); font-size: 14px; }
+
+  /* KANBAN */
+  #page-kanban { overflow-y: auto; }
+  .kanban-header { padding: 20px 16px 12px; display: flex; align-items: center; gap: 12px; }
+  .kanban-header h1 { font-size: 20px; font-weight: 700; flex: 1; }
+  .kanban-board { display: flex; gap: 12px; padding: 0 16px 20px; overflow-x: auto; align-items: flex-start; min-height: calc(100dvh - 160px); }
+  .kanban-col { flex: 0 0 280px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; max-height: calc(100dvh - 180px); }
+  .kanban-col-header { padding: 12px 14px; font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0; border-radius: var(--radius) var(--radius) 0 0; }
+  .col-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .col-count { background: var(--surface2); color: var(--text2); border-radius: 20px; padding: 1px 8px; font-size: 11px; font-weight: 600; margin-left: auto; }
+  .kanban-cards { padding: 10px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+  .kanban-cards.drag-over { background: rgba(108,99,255,.08); border-radius: 8px; }
+  .task-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: grab; transition: box-shadow .2s, opacity .2s; user-select: none; }
+  .task-card:active { cursor: grabbing; }
+  .task-card.dragging { opacity: .4; }
+  .task-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 6px; line-height: 1.4; }
+  .task-card .task-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .task-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--surface2); border-radius: 20px; padding: 2px 8px; font-size: 11px; color: var(--text2); }
+  .task-badge.owner { background: rgba(108,99,255,.15); color: var(--accent2); }
+  .task-badge.due { background: rgba(245,158,11,.1); color: var(--warn); }
+  .task-badge.meeting { background: rgba(34,197,94,.1); color: var(--success); }
+  .task-card-actions { display: flex; gap: 6px; margin-top: 10px; }
+  .icon-btn { background: none; border: none; cursor: pointer; color: var(--text2); padding: 4px; border-radius: 4px; transition: color .2s, background .2s; }
+  .icon-btn:hover { color: var(--text); background: var(--surface2); }
+  .add-task-btn { margin: 0 10px 10px; }
+
+  /* ADD TASK MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; align-items: flex-end; justify-content: center; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 20px 20px 0 0; padding: 20px; width: 100%; max-width: 600px; max-height: 90dvh; overflow-y: auto; animation: slideUp .3s ease; }
+  @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .modal h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { font-size: 13px; color: var(--text2); margin-bottom: 6px; display: block; font-weight: 500; }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 10px 12px; font-size: 14px; outline: none; font-family: inherit; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--accent); }
+  .form-group textarea { resize: vertical; min-height: 80px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 6px; }
+
+  /* SETTINGS */
+  #page-settings { padding: 16px; gap: 16px; }
+  .settings-section { margin-bottom: 20px; }
+  .settings-section h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text2); text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
+  .settings-row { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+  .settings-row label { flex: 1; font-size: 14px; font-weight: 500; }
+  .settings-row .desc { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .settings-input { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 8px 12px; font-size: 14px; outline: none; width: 100%; font-family: monospace; }
+  .settings-input:focus { border-color: var(--accent); }
+
+  /* TOAST */
+  .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 18px; font-size: 14px; font-weight: 500; z-index: 300; animation: fadeInOut 2.5s ease forwards; white-space: nowrap; }
+  @keyframes fadeInOut { 0% { opacity:0; transform: translateX(-50%) translateY(-10px); } 15%,75% { opacity:1; transform: translateX(-50%) translateY(0); } 100% { opacity:0; transform: translateX(-50%) translateY(-10px); } }
+
+  /* MISC */
+  .divider { height: 1px; background: var(--border); margin: 8px 0; }
+  .text-danger { color: var(--danger); }
+  .chip { display: inline-block; background: var(--surface2); border-radius: 20px; padding: 3px 10px; font-size: 12px; color: var(--text2); border: 1px solid var(--border); }
+  .meeting-detail-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; }
+  .back-btn { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; color: var(--text); padding: 8px 12px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .priority-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .prio-high { background: var(--danger); }
+  .prio-med { background: var(--warn); }
+  .prio-low { background: var(--success); }
+
+  @media (min-width: 600px) {
+    .kanban-board { padding: 0 20px 20px; }
+    .kanban-col { flex: 0 0 320px; }
+    #page-record, .summary-content { max-width: 600px; margin: 0 auto; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- PAGES -->
+<div id="page-home" class="page active">
+  <div class="header">
+    <h1>Meetings</h1>
+    <button class="btn btn-primary btn-sm" onclick="startNewMeeting()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New
+    </button>
+  </div>
+  <div class="meetings-list" id="meetings-list">
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+      <p>No meetings yet.<br>Tap <strong>New</strong> to record your first.</p>
+    </div>
+  </div>
+</div>
+
+<div id="page-record" class="page">
+  <button class="back-btn" onclick="goBack()" style="align-self:flex-start;margin-bottom:4px">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+    Back
+  </button>
+  <div>
+    <label>Meeting Title</label>
+    <input class="meeting-title-input" id="meeting-title" type="text" placeholder="e.g. Q3 Planning Sync" />
+  </div>
+  <div class="record-controls">
+    <div class="record-timer" id="record-timer">00:00</div>
+    <button class="record-btn idle" id="record-btn" onclick="toggleRecord()">🎙️</button>
+    <div class="record-status" id="record-status">Tap to start recording</div>
+    <div id="mic-warning" style="display:none;font-size:12px;color:var(--warn);text-align:center;padding:6px 12px;background:rgba(245,158,11,.1);border-radius:8px;border:1px solid rgba(245,158,11,.3);">
+      ⚠ Live transcription requires Chrome or Edge. Type notes below instead.
+    </div>
+    <div class="row">
+      <button class="btn btn-ghost btn-sm" id="pause-btn" onclick="togglePause()" style="display:none">⏸ Pause</button>
+      <button class="btn btn-ghost btn-sm" id="stop-btn" onclick="stopAndSummarise()" style="display:none">⏹ Stop & Summarise</button>
+    </div>
+  </div>
+  <div>
+    <label style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Live Transcript</span>
+      <span id="transcript-word-count" style="font-size:11px;color:var(--text2);font-weight:400;"></span>
+    </label>
+    <div class="transcript-box" id="transcript-box">
+      <span class="transcript-placeholder">Transcript will appear here as you speak…</span>
+    </div>
+  </div>
+  <div>
+    <label>Notes &amp; Context <span style="color:var(--text2);font-weight:400;font-size:11px;">— type, paste, or add anything here</span></label>
+    <textarea id="manual-notes" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:10px 12px;font-size:14px;outline:none;font-family:inherit;resize:vertical;min-height:120px;" placeholder="Paste meeting notes, agenda, key points, action items discussed… The AI will summarise whatever you put here." oninput="updateNoteCount()"></textarea>
+    <div id="note-count" style="font-size:11px;color:var(--text2);text-align:right;margin-top:4px;"></div>
+  </div>
+  <button class="btn btn-primary" id="summarise-btn" style="display:none;width:100%;padding:14px;font-size:15px;" onclick="stopAndSummarise()">✨ Summarise with AI</button>
+</div>
+
+<div id="page-summary" class="page">
+  <div id="summary-loading" class="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text">Summarising with AI…</div>
+  </div>
+  <div id="summary-main" style="display:none; flex-direction:column; flex:1;">
+    <div class="meeting-detail-header">
+      <button class="back-btn" onclick="showPage('home')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
+      </button>
+      <div style="flex:1">
+        <div style="font-size:18px;font-weight:700" id="summary-title"></div>
+        <div style="font-size:12px;color:var(--text2)" id="summary-date"></div>
+      </div>
+    </div>
+    <div class="summary-content">
+      <div class="section-title">📝 Summary</div>
+      <div class="summary-box" id="summary-text"></div>
+
+      <div class="section-title">✅ Action Items
+        <button class="btn btn-ghost btn-sm" onclick="addActionRow()">+ Add</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="actions-table">
+          <thead><tr>
+            <th>Action</th>
+            <th>Owner</th>
+            <th>Due Date</th>
+            <th>Priority</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="actions-tbody"></tbody>
+        </table>
+      </div>
+
+      <div id="summary-file-link" style="display:none;margin-top:12px;padding:8px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);"></div>
+
+      <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="pushToKanban()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Push to Kanban
+        </button>
+        <button class="btn btn-ghost" onclick="deleteMeeting()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="page-kanban" class="page" style="flex-direction:column;">
+  <div class="kanban-header">
+    <h1>Task Board</h1>
+    <button class="btn btn-primary btn-sm" onclick="openAddTaskModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Task
+    </button>
+  </div>
+  <div class="kanban-board" id="kanban-board">
+    <div class="kanban-col" data-col="todo">
+      <div class="kanban-col-header"><span class="col-dot" style="background:var(--todo)"></span>To Do<span class="col-count" id="cnt-todo">0</span></div>
+      <div class="kanban-cards" id="col-todo" ondragover="onDragOver(event)" ondrop="onDrop(event,'todo')" ondragleave="onDragLeave(event)"></div>
+      <button class="btn btn-ghost btn-sm add-task-btn" onclick="openAddTaskModal('todo')">+ Add task</button>
+    </div>
+    <div class="kanban-col" data-col="doing">
+      <div class="kanban-col-header"><span class="col-dot" style="background:var(--doing)"></span>Doing<span class="col-count" id="cnt-doing">0</span></div>
+      <div class="kanban-cards" id="col-doing" ondragover="onDragOver(event)" ondrop="onDrop(event,'doing')" ondragleave="onDragLeave(event)"></div>
+      <button class="btn btn-ghost btn-sm add-task-btn" onclick="openAddTaskModal('doing')">+ Add task</button>
+    </div>
+    <div class="kanban-col" data-col="done">
+      <div class="kanban-col-header"><span class="col-dot" style="background:var(--done)"></span>Done<span class="col-count" id="cnt-done">0</span></div>
+      <div class="kanban-cards" id="col-done" ondragover="onDragOver(event)" ondrop="onDrop(event,'done')" ondragleave="onDragLeave(event)"></div>
+      <button class="btn btn-ghost btn-sm add-task-btn" onclick="openAddTaskModal('done')">+ Add task</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETUP WIZARD (shown when no auth is available) -->
+<div id="page-setup" class="page" style="justify-content:center;align-items:center;padding:24px;overflow-y:auto;">
+  <div style="max-width:440px;width:100%;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:48px;margin-bottom:12px;">🎙️</div>
+      <h1 style="font-size:24px;font-weight:800;margin-bottom:8px;">One-time Setup</h1>
+      <p style="color:var(--text2);font-size:14px;line-height:1.6;">Choose how the app connects to Claude AI for meeting summarisation.</p>
+    </div>
+
+    <!-- Option A: Corporate / Claude.ai plan -->
+    <div class="card" style="margin-bottom:12px;border-color:var(--accent)">
+      <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Option A — Corporate or Claude.ai plan</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:12px;">Use your existing Claude login (works with corporate SSO, team plans, and personal claude.ai accounts). No API key needed.</div>
+      <div style="background:var(--surface2);border-radius:8px;padding:12px;font-family:monospace;font-size:13px;color:var(--accent2);margin-bottom:12px;">claude login</div>
+      <ol style="font-size:13px;color:var(--text2);line-height:2;padding-left:18px;">
+        <li>Open a terminal / PowerShell</li>
+        <li>Run <code style="background:var(--surface2);padding:1px 6px;border-radius:4px;color:var(--text)">claude login</code></li>
+        <li>Log in with your corporate / Claude.ai account</li>
+        <li>Come back here and tap the button below</li>
+      </ol>
+      <button class="btn btn-primary" style="width:100%;margin-top:4px" onclick="checkSetupAndContinue()">I've logged in →</button>
+    </div>
+
+    <!-- Option B: API key -->
+    <div class="card" style="margin-bottom:16px;">
+      <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Option B — Personal API key</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:10px;">Use an API key from <strong>console.anthropic.com</strong>.</div>
+      <div class="form-group" style="margin-bottom:8px;">
+        <input type="password" id="setup-key-input" class="settings-input" placeholder="sk-ant-api03-…" style="font-family:monospace;" />
+      </div>
+      <button class="btn btn-ghost" style="width:100%" onclick="submitSetup()">Save API key →</button>
+    </div>
+
+    <div id="setup-error" style="color:var(--danger);font-size:13px;margin-bottom:12px;display:none;padding:10px;background:rgba(239,68,68,.1);border-radius:8px;border:1px solid rgba(239,68,68,.3)"></div>
+  </div>
+</div>
+
+<div id="page-settings" class="page">
+  <div class="header"><h1>Settings</h1></div>
+
+  <div class="settings-section">
+    <h2>Appearance</h2>
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+      <label>Theme Presets</label>
+      <div class="theme-grid" id="theme-grid"></div>
+    </div>
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+      <label>Custom Colours</label>
+      <div class="color-row">
+        <div class="color-pick"><input type="color" id="cp-bg" oninput="applyCustomColour('bg',this.value)"><span>Background</span></div>
+        <div class="color-pick"><input type="color" id="cp-surface" oninput="applyCustomColour('surface',this.value)"><span>Cards</span></div>
+        <div class="color-pick"><input type="color" id="cp-accent" oninput="applyCustomColour('accent',this.value)"><span>Accent</span></div>
+        <div class="color-pick"><input type="color" id="cp-text" oninput="applyCustomColour('text',this.value)"><span>Text</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-section">
+    <h2>AI Configuration</h2>
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+      <label>API Key
+        <div class="desc">Stored in config.json on this machine</div>
+      </label>
+      <div style="display:flex;gap:8px;width:100%;align-items:center;">
+        <input type="password" id="settings-key-input" class="settings-input" placeholder="sk-ant-…" style="font-family:monospace;flex:1" />
+        <button class="btn btn-ghost btn-sm" onclick="updateApiKey()">Save</button>
+      </div>
+    </div>
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+      <label>AI Model
+        <div class="desc">Model used for summarisation</div>
+      </label>
+      <div id="server-model" style="font-size:13px;color:var(--accent2);font-family:monospace;">loading…</div>
+    </div>
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+      <label>Saved Meeting Files
+        <div class="desc">Markdown files are saved to the <code style="background:var(--surface2);padding:1px 5px;border-radius:4px">meetings/</code> folder next to serve.js</div>
+      </label>
+      <div id="saved-files-list" style="width:100%"></div>
+    </div>
+  </div>
+  <div class="settings-section">
+    <h2>Data</h2>
+    <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:8px;">
+      <label>Clear Board Data
+        <div class="desc">Remove all meetings and tasks from browser storage (saved .md files are kept)</div>
+      </label>
+      <button class="btn btn-danger btn-sm" onclick="clearAllData()">Clear Everything</button>
+    </div>
+  </div>
+  <div style="padding:16px;color:var(--text2);font-size:12px;text-align:center;">
+    Meeting Notes & Tasks • API key stored in config.json on server
+  </div>
+</div>
+
+<!-- ADD TASK MODAL -->
+<div class="modal-overlay" id="task-modal" onclick="closeTaskModal(event)">
+  <div class="modal">
+    <h2 id="modal-title">Add Task</h2>
+    <div class="form-group">
+      <label>Task Title *</label>
+      <input type="text" id="task-title-input" placeholder="e.g. Update project timeline" />
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <textarea id="task-desc-input" placeholder="Optional details…"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Owner</label>
+      <input type="text" id="task-owner-input" placeholder="e.g. Sarah" />
+    </div>
+    <div class="form-group">
+      <label>Due Date</label>
+      <input type="date" id="task-due-input" />
+    </div>
+    <div class="form-group">
+      <label>Priority</label>
+      <select id="task-priority-input">
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Status</label>
+      <select id="task-status-input">
+        <option value="todo">To Do</option>
+        <option value="doing">Doing</option>
+        <option value="done">Done</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" style="flex:1" onclick="saveTask()">Save Task</button>
+      <button class="btn btn-ghost" onclick="closeTaskModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav>
+  <button onclick="showPage('home')" id="nav-home" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+    Meetings
+  </button>
+  <button onclick="showPage('kanban')" id="nav-kanban">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Board
+  </button>
+  <button onclick="showPage('settings')" id="nav-settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
+  </button>
+</nav>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────
+let meetings = JSON.parse(localStorage.getItem('mnapp_meetings') || '[]');
+let tasks    = JSON.parse(localStorage.getItem('mnapp_tasks')    || '[]');
+let currentMeetingId = null;
+let editingTaskId = null;
+let defaultTaskStatus = 'todo';
+
+// Recording state
+let recognition = null;
+let isRecording = false;
+let isPaused = false;
+let timerInterval = null;
+let seconds = 0;
+let finalTranscript = '';
+let interimTranscript = '';
+
+// Drag state
+let dragTaskId = null;
+
+// ── PERSISTENCE ──────────────────────────────────────────────────────────
+function saveMeetings() { localStorage.setItem('mnapp_meetings', JSON.stringify(meetings)); }
+function saveTasks()    { localStorage.setItem('mnapp_tasks',    JSON.stringify(tasks)); }
+
+// ── NAVIGATION ────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const navBtn = document.getElementById('nav-' + name);
+  if (navBtn) navBtn.classList.add('active');
+  if (name === 'home') renderMeetingsList();
+  if (name === 'kanban') renderKanban();
+  if (name === 'settings') { loadSettings(); buildThemeGrid(); }
+}
+
+function goBack() {
+  stopRecording(false);
+  showPage('home');
+}
+
+// ── MEETINGS LIST ────────────────────────────────────────────────────────
+function renderMeetingsList() {
+  const el = document.getElementById('meetings-list');
+  if (!meetings.length) {
+    el.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+      <p>No meetings yet.<br>Tap <strong>New</strong> to record your first.</p>
+    </div>`;
+    return;
+  }
+  el.innerHTML = meetings.slice().reverse().map(m => {
+    const actionCount = (m.actions||[]).length;
+    return `<div class="meeting-card" onclick="openMeeting('${m.id}')">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
+        <h3>${esc(m.title||'Untitled Meeting')}</h3>
+        ${actionCount ? `<span class="actions-count">${actionCount} action${actionCount!==1?'s':''}</span>` : ''}
+      </div>
+      <div class="meta">
+        <span>${formatDate(m.date)}</span>
+        <span>${m.duration||''}</span>
+        ${m.pushed ? `<span style="color:var(--success)">✓ On board</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openMeeting(id) {
+  const m = meetings.find(x => x.id === id);
+  if (!m) return;
+  currentMeetingId = id;
+  showSummaryPage(m);
+  showPage('summary');
+}
+
+// ── RECORDING ─────────────────────────────────────────────────────────────
+function startNewMeeting() {
+  currentMeetingId = null;
+  finalTranscript = '';
+  interimTranscript = '';
+  seconds = 0;
+  document.getElementById('record-timer').textContent = '00:00';
+  document.getElementById('meeting-title').value = '';
+  document.getElementById('manual-notes').value = '';
+  document.getElementById('note-count').textContent = '';
+  document.getElementById('transcript-word-count').textContent = '';
+  document.getElementById('transcript-box').innerHTML = '<span class="transcript-placeholder">Transcript will appear here as you speak…</span>';
+  document.getElementById('record-btn').className = 'record-btn idle';
+  document.getElementById('record-btn').textContent = '🎙️';
+  document.getElementById('record-status').textContent = 'Tap to start recording';
+  document.getElementById('pause-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = 'none';
+  document.getElementById('summarise-btn').style.display = 'none';
+  document.getElementById('mic-warning').style.display = 'none';
+  isRecording = false;
+  isPaused = false;
+  showPage('record');
+}
+
+function updateSummariseBtn() {
+  const hasContent = finalTranscript.trim() || document.getElementById('manual-notes').value.trim();
+  document.getElementById('summarise-btn').style.display = hasContent ? '' : 'none';
+}
+
+function updateNoteCount() {
+  const val = document.getElementById('manual-notes').value.trim();
+  const words = val ? val.split(/\s+/).length : 0;
+  document.getElementById('note-count').textContent = words ? `${words} words` : '';
+  updateSummariseBtn();
+}
+
+function toggleRecord() {
+  if (!isRecording) startRecording();
+  else stopRecording(false);
+}
+
+function startRecording() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    // No speech API — still start timer so they can use notes
+    document.getElementById('mic-warning').style.display = '';
+    document.getElementById('record-btn').className = 'record-btn recording';
+    document.getElementById('record-btn').textContent = '⏹';
+    document.getElementById('record-status').textContent = 'Recording (notes only)…';
+    document.getElementById('pause-btn').style.display = 'none';
+    document.getElementById('stop-btn').style.display = '';
+    isRecording = true;
+    startTimer();
+    return;
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = e => {
+    interimTranscript = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) finalTranscript += e.results[i][0].transcript + ' ';
+      else interimTranscript += e.results[i][0].transcript;
+    }
+    updateTranscriptDisplay();
+    updateSummariseBtn();
+  };
+  recognition.onerror = e => {
+    if (e.error === 'not-allowed') {
+      document.getElementById('mic-warning').textContent = '⚠ Microphone access denied. Type notes below instead.';
+      document.getElementById('mic-warning').style.display = '';
+    } else if (e.error !== 'no-speech') {
+      toast('Mic error: ' + e.error);
+    }
+  };
+  recognition.onend = () => { if (isRecording && !isPaused) recognition.start(); };
+
+  recognition.start();
+  isRecording = true;
+  isPaused = false;
+  document.getElementById('record-btn').className = 'record-btn recording';
+  document.getElementById('record-btn').textContent = '⏹';
+  document.getElementById('record-status').textContent = 'Recording…';
+  document.getElementById('pause-btn').style.display = '';
+  document.getElementById('stop-btn').style.display = '';
+  startTimer();
+}
+
+function togglePause() {
+  if (!isRecording) return;
+  if (!isPaused) {
+    recognition.stop();
+    isPaused = true;
+    clearInterval(timerInterval);
+    document.getElementById('record-btn').className = 'record-btn paused';
+    document.getElementById('record-btn').textContent = '▶️';
+    document.getElementById('record-status').textContent = 'Paused';
+    document.getElementById('pause-btn').textContent = '▶ Resume';
+  } else {
+    recognition.start();
+    isPaused = false;
+    document.getElementById('record-btn').className = 'record-btn recording';
+    document.getElementById('record-btn').textContent = '⏹';
+    document.getElementById('record-status').textContent = 'Recording…';
+    document.getElementById('pause-btn').textContent = '⏸ Pause';
+    startTimer();
+  }
+}
+
+function stopRecording(summarise = true) {
+  if (recognition) { recognition.onend = null; recognition.stop(); recognition = null; }
+  clearInterval(timerInterval);
+  isRecording = false;
+  isPaused = false;
+  document.getElementById('record-btn').className = 'record-btn idle';
+  document.getElementById('record-btn').textContent = '🎙️';
+  document.getElementById('record-status').textContent = 'Tap to start recording';
+  document.getElementById('pause-btn').style.display = 'none';
+  document.getElementById('stop-btn').style.display = 'none';
+}
+
+function stopAndSummarise() {
+  const transcript = finalTranscript.trim();
+  const manual = document.getElementById('manual-notes').value.trim();
+  const title = document.getElementById('meeting-title').value.trim() || 'Untitled Meeting';
+  const duration = formatSeconds(seconds);
+  stopRecording(false);
+
+  const combined = [transcript, manual].filter(Boolean).join('\n\n---Notes---\n');
+
+  const meeting = {
+    id: 'mtg_' + Date.now(),
+    title,
+    date: new Date().toISOString(),
+    duration,
+    transcript: combined,
+    summary: '',
+    actions: [],
+    pushed: false
+  };
+  meetings.push(meeting);
+  saveMeetings();
+  currentMeetingId = meeting.id;
+  showPage('summary');
+
+  if (!combined) {
+    // Nothing at all — land on summary so they can add actions manually
+    document.getElementById('summary-loading').style.display = 'none';
+    document.getElementById('summary-main').style.display = 'flex';
+    showSummaryPage(meeting);
+    return;
+  }
+
+  document.getElementById('summary-loading').style.display = 'flex';
+  document.getElementById('summary-main').style.display = 'none';
+  summariseWithAI(combined, title, meeting.id);
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    seconds++;
+    document.getElementById('record-timer').textContent = formatSeconds(seconds);
+  }, 1000);
+}
+
+function updateTranscriptDisplay() {
+  const box = document.getElementById('transcript-box');
+  if (!finalTranscript && !interimTranscript) {
+    box.innerHTML = '<span class="transcript-placeholder">Transcript will appear here as you speak…</span>';
+  } else {
+    box.innerHTML = (finalTranscript ? `<span>${esc(finalTranscript)}</span>` : '') +
+      (interimTranscript ? `<span class="interim">${esc(interimTranscript)}</span>` : '');
+    const words = finalTranscript.trim().split(/\s+/).filter(Boolean).length;
+    document.getElementById('transcript-word-count').textContent = words ? `${words} words` : '';
+  }
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── AI SUMMARISATION ──────────────────────────────────────────────────────
+async function summariseWithAI(text, title, meetingId) {
+  const meeting = meetings.find(m => m.id === meetingId);
+
+  // Timeout: if no response in 30s, show error
+  const timeout = setTimeout(() => {
+    showSummariseError(meetingId,
+      'Request timed out after 30 seconds.\n\nCheck that serve.js is running and your API key in config.json is correct, then tap Re-summarise.',
+      text, title);
+  }, 30000);
+
+  try {
+    const res = await fetch('/api/summarise', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        title,
+        date: meeting?.date,
+        duration: meeting?.duration,
+        transcript: meeting?.transcript
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      if (data.error === 'setup_required') {
+        // Redirect to setup wizard
+        clearTimeout(timeout);
+        document.getElementById('summary-loading').style.display = 'none';
+        document.getElementById('summary-main').style.display = 'flex';
+        showPage('setup');
+        return;
+      }
+      const code = res.status;
+      const hint = code === 401 ? ' — open Settings to update your API key'
+                 : code === 429 ? ' — rate limit hit, wait and retry'
+                 : code === 529 ? ' — Anthropic overloaded, try again shortly'
+                 : '';
+      throw new Error(`${data.error || 'API error ' + code}${hint}`);
+    }
+
+    clearTimeout(timeout);
+    if (meeting) {
+      meeting.summary = data.summary;
+      meeting.actions = (data.actions || []).map((a, i) => ({ ...a, id: 'act_' + Date.now() + i }));
+      meeting._savedFile = data.filename;
+      meeting._rawText = undefined;
+      saveMeetings();
+    }
+    document.getElementById('summary-loading').style.display = 'none';
+    document.getElementById('summary-main').style.display = 'flex';
+    showSummaryPage(meetings.find(m => m.id === meetingId));
+    if (data.filename) toast(`Saved to meetings/${data.filename}`);
+
+  } catch(e) {
+    clearTimeout(timeout);
+    showSummariseError(meetingId, e.message, text, title);
+  }
+}
+
+function showSummariseError(meetingId, message, rawText, title) {
+  const meeting = meetings.find(m => m.id === meetingId);
+  if (meeting) {
+    meeting.summary = '';
+    meeting._rawText = rawText;
+    meeting._rawTitle = title;
+    saveMeetings();
+  }
+  document.getElementById('summary-loading').style.display = 'none';
+  document.getElementById('summary-main').style.display = 'flex';
+
+  // Show error panel instead of normal summary
+  document.getElementById('summary-text').innerHTML =
+    `<div style="color:var(--danger);font-weight:600;margin-bottom:12px;">⚠ AI summarisation failed</div>` +
+    `<div style="color:var(--text2);font-size:13px;white-space:pre-wrap;line-height:1.7">${esc(message)}</div>` +
+    `<button class="btn btn-primary" style="margin-top:16px" onclick="retrySummarise('${meetingId}')">↺ Re-summarise</button>`;
+
+  if (meeting) {
+    document.getElementById('summary-title').textContent = meeting.title || 'Untitled Meeting';
+    document.getElementById('summary-date').textContent = formatDate(meeting.date) + (meeting.duration ? ' · ' + meeting.duration : '');
+    renderActionsTable([]);
+  }
+}
+
+function retrySummarise(meetingId) {
+  const meeting = meetings.find(m => m.id === meetingId);
+  const text = meeting?._rawText || meeting?.transcript;
+  if (!meeting || !text) { toast('No transcript to re-summarise.'); return; }
+  document.getElementById('summary-loading').style.display = 'flex';
+  document.getElementById('summary-main').style.display = 'none';
+  summariseWithAI(text, meeting._rawTitle || meeting.title, meetingId);
+}
+
+// ── SUMMARY PAGE ──────────────────────────────────────────────────────────
+function showSummaryPage(meeting) {
+  document.getElementById('summary-loading').style.display = 'none';
+  document.getElementById('summary-main').style.display = 'flex';
+  document.getElementById('summary-title').textContent = meeting.title || 'Untitled Meeting';
+  document.getElementById('summary-date').textContent = formatDate(meeting.date) + (meeting.duration ? ' · ' + meeting.duration : '');
+
+  if (!meeting.summary) {
+    // No summary yet — show re-summarise option
+    const hasText = !!(meeting._rawText || meeting.transcript);
+    document.getElementById('summary-text').innerHTML =
+      `<div style="color:var(--text2);margin-bottom:12px;">No summary yet.</div>` +
+      (hasText
+        ? `<button class="btn btn-primary" onclick="retrySummarise('${meeting.id}')">✨ Summarise with AI</button>`
+        : `<div style="color:var(--text2);font-size:13px;">No transcript was recorded. Add action items manually below.</div>`);
+  } else {
+    document.getElementById('summary-text').textContent = meeting.summary;
+  }
+
+  const fileEl = document.getElementById('summary-file-link');
+  if (fileEl) {
+    if (meeting._savedFile) {
+      fileEl.innerHTML = `<a href="/meetings/${esc(meeting._savedFile)}" target="_blank"
+        style="display:inline-flex;align-items:center;gap:6px;color:var(--accent2);font-size:12px;text-decoration:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        ${esc(meeting._savedFile)}</a>`;
+      fileEl.style.display = '';
+    } else {
+      fileEl.style.display = 'none';
+    }
+  }
+
+  renderActionsTable(meeting.actions || []);
+}
+
+function renderActionsTable(actions) {
+  const tbody = document.getElementById('actions-tbody');
+  if (!actions.length) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text2);padding:20px;">No action items identified. Add one manually.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = actions.map((a, i) => `
+    <tr data-idx="${i}">
+      <td><input type="text" value="${esc(a.action||'')}" onchange="updateAction(${i},'action',this.value)" placeholder="Action…"/></td>
+      <td><input type="text" value="${esc(a.owner||'')}" onchange="updateAction(${i},'owner',this.value)" placeholder="Owner…"/></td>
+      <td><input type="date" value="${a.dueDate||''}" onchange="updateAction(${i},'dueDate',this.value)"/></td>
+      <td><select onchange="updateAction(${i},'priority',this.value)">
+        <option value="high" ${a.priority==='high'?'selected':''}>🔴 High</option>
+        <option value="medium" ${a.priority==='medium'||!a.priority?'selected':''}>🟡 Med</option>
+        <option value="low" ${a.priority==='low'?'selected':''}>🟢 Low</option>
+      </select></td>
+      <td><button class="icon-btn text-danger" onclick="removeAction(${i})" title="Remove">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button></td>
+    </tr>`).join('');
+}
+
+function updateAction(idx, field, value) {
+  const m = meetings.find(x => x.id === currentMeetingId);
+  if (!m || !m.actions[idx]) return;
+  m.actions[idx][field] = value;
+  saveMeetings();
+}
+
+function addActionRow() {
+  const m = meetings.find(x => x.id === currentMeetingId);
+  if (!m) return;
+  m.actions.push({ id: 'act_' + Date.now(), action: '', owner: '', dueDate: '', priority: 'medium' });
+  saveMeetings();
+  renderActionsTable(m.actions);
+}
+
+function removeAction(idx) {
+  const m = meetings.find(x => x.id === currentMeetingId);
+  if (!m) return;
+  m.actions.splice(idx, 1);
+  saveMeetings();
+  renderActionsTable(m.actions);
+}
+
+function pushToKanban() {
+  const m = meetings.find(x => x.id === currentMeetingId);
+  if (!m) return;
+  const newTasks = (m.actions || []).map(a => ({
+    id: 'task_' + Date.now() + Math.random().toString(36).slice(2),
+    title: a.action || 'Untitled action',
+    description: '',
+    owner: a.owner || '',
+    dueDate: a.dueDate || '',
+    priority: a.priority || 'medium',
+    status: 'todo',
+    meetingId: m.id,
+    meetingTitle: m.title,
+    createdAt: new Date().toISOString()
+  }));
+  tasks.push(...newTasks);
+  saveTasks();
+  m.pushed = true;
+  saveMeetings();
+  toast(`${newTasks.length} task${newTasks.length!==1?'s':''} pushed to board!`);
+  renderKanban();
+}
+
+function deleteMeeting() {
+  if (!confirm('Delete this meeting and its summary?')) return;
+  meetings = meetings.filter(m => m.id !== currentMeetingId);
+  saveMeetings();
+  currentMeetingId = null;
+  showPage('home');
+}
+
+// ── KANBAN ────────────────────────────────────────────────────────────────
+function renderKanban() {
+  ['todo','doing','done'].forEach(status => {
+    const col = document.getElementById('col-' + status);
+    const colTasks = tasks.filter(t => t.status === status);
+    document.getElementById('cnt-' + status).textContent = colTasks.length;
+    col.innerHTML = colTasks.map(t => renderTaskCard(t)).join('');
+    col.querySelectorAll('.task-card').forEach(el => {
+      el.addEventListener('dragstart', onDragStart);
+      el.addEventListener('dragend', onDragEnd);
+      // Touch drag
+      el.addEventListener('touchstart', onTouchStart, { passive: true });
+    });
+  });
+}
+
+function renderTaskCard(t) {
+  const prioBg = { high:'rgba(239,68,68,.15)', medium:'rgba(245,158,11,.1)', low:'rgba(34,197,94,.1)' }[t.priority] || '';
+  const prioColor = { high:'var(--danger)', medium:'var(--warn)', low:'var(--success)' }[t.priority] || '';
+  const prioLabel = { high:'High', medium:'Med', low:'Low' }[t.priority] || 'Med';
+  return `<div class="task-card" draggable="true" data-id="${t.id}">
+    <h4>${esc(t.title)}</h4>
+    ${t.description ? `<div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.5">${esc(t.description)}</div>` : ''}
+    <div class="task-meta">
+      <span class="task-badge" style="background:${prioBg};color:${prioColor}">● ${prioLabel}</span>
+      ${t.owner ? `<span class="task-badge owner">👤 ${esc(t.owner)}</span>` : ''}
+      ${t.dueDate ? `<span class="task-badge due">📅 ${t.dueDate}</span>` : ''}
+      ${t.meetingTitle ? `<span class="task-badge meeting">🎙 ${esc(t.meetingTitle)}</span>` : ''}
+    </div>
+    <div class="task-card-actions">
+      <button class="icon-btn" onclick="editTask('${t.id}')" title="Edit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      ${t.status !== 'doing' ? `<button class="icon-btn" onclick="moveTask('${t.id}','doing')" title="Move to Doing" style="color:var(--warn)">▶</button>` : ''}
+      ${t.status !== 'done' ? `<button class="icon-btn" onclick="moveTask('${t.id}','done')" title="Mark Done" style="color:var(--success)">✓</button>` : ''}
+      <button class="icon-btn text-danger" onclick="deleteTask('${t.id}')" title="Delete">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </button>
+    </div>
+  </div>`;
+}
+
+function moveTask(id, status) {
+  const t = tasks.find(x => x.id === id);
+  if (t) { t.status = status; saveTasks(); renderKanban(); }
+}
+
+function deleteTask(id) {
+  if (!confirm('Delete this task?')) return;
+  tasks = tasks.filter(t => t.id !== id);
+  saveTasks(); renderKanban();
+}
+
+// ── DRAG & DROP (Desktop) ──────────────────────────────────────────────────
+function onDragStart(e) {
+  dragTaskId = e.currentTarget.dataset.id;
+  setTimeout(() => e.currentTarget.classList.add('dragging'), 0);
+}
+function onDragEnd(e) { e.currentTarget.classList.remove('dragging'); }
+function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function onDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function onDrop(e, col) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  if (!dragTaskId) return;
+  moveTask(dragTaskId, col);
+  dragTaskId = null;
+}
+
+// ── TOUCH DRAG (Mobile) ────────────────────────────────────────────────────
+let touchDragEl = null, touchClone = null, touchTaskId = null;
+function onTouchStart(e) {
+  touchDragEl = e.currentTarget;
+  touchTaskId = touchDragEl.dataset.id;
+  const rect = touchDragEl.getBoundingClientRect();
+  touchClone = touchDragEl.cloneNode(true);
+  touchClone.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;opacity:.75;pointer-events:none;z-index:999;border:2px solid var(--accent);border-radius:8px;`;
+  document.body.appendChild(touchClone);
+  touchDragEl.style.opacity = '.3';
+
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+}
+function onTouchMove(e) {
+  e.preventDefault();
+  const t = e.touches[0];
+  touchClone.style.left = (t.clientX - touchClone.offsetWidth/2) + 'px';
+  touchClone.style.top  = (t.clientY - touchClone.offsetHeight/2) + 'px';
+  document.querySelectorAll('.kanban-cards').forEach(c => c.classList.remove('drag-over'));
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  const col = el && el.closest('.kanban-cards');
+  if (col) col.classList.add('drag-over');
+}
+function onTouchEnd(e) {
+  document.removeEventListener('touchmove', onTouchMove);
+  document.removeEventListener('touchend', onTouchEnd);
+  if (touchClone) { touchClone.remove(); touchClone = null; }
+  if (touchDragEl) { touchDragEl.style.opacity = ''; touchDragEl = null; }
+
+  const t = e.changedTouches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  const col = el && el.closest('.kanban-cards');
+  document.querySelectorAll('.kanban-cards').forEach(c => c.classList.remove('drag-over'));
+  if (col && touchTaskId) {
+    const colId = col.id.replace('col-','');
+    moveTask(touchTaskId, colId);
+  }
+  touchTaskId = null;
+}
+
+// ── ADD / EDIT TASK MODAL ─────────────────────────────────────────────────
+function openAddTaskModal(status) {
+  editingTaskId = null;
+  defaultTaskStatus = status || 'todo';
+  document.getElementById('modal-title').textContent = 'Add Task';
+  document.getElementById('task-title-input').value = '';
+  document.getElementById('task-desc-input').value = '';
+  document.getElementById('task-owner-input').value = '';
+  document.getElementById('task-due-input').value = '';
+  document.getElementById('task-priority-input').value = 'medium';
+  document.getElementById('task-status-input').value = defaultTaskStatus;
+  document.getElementById('task-modal').classList.add('open');
+  setTimeout(() => document.getElementById('task-title-input').focus(), 100);
+}
+
+function editTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (!t) return;
+  editingTaskId = id;
+  document.getElementById('modal-title').textContent = 'Edit Task';
+  document.getElementById('task-title-input').value = t.title || '';
+  document.getElementById('task-desc-input').value = t.description || '';
+  document.getElementById('task-owner-input').value = t.owner || '';
+  document.getElementById('task-due-input').value = t.dueDate || '';
+  document.getElementById('task-priority-input').value = t.priority || 'medium';
+  document.getElementById('task-status-input').value = t.status || 'todo';
+  document.getElementById('task-modal').classList.add('open');
+}
+
+function saveTask() {
+  const title = document.getElementById('task-title-input').value.trim();
+  if (!title) { toast('Task title is required.'); return; }
+
+  if (editingTaskId) {
+    const t = tasks.find(x => x.id === editingTaskId);
+    if (t) {
+      t.title = title;
+      t.description = document.getElementById('task-desc-input').value.trim();
+      t.owner = document.getElementById('task-owner-input').value.trim();
+      t.dueDate = document.getElementById('task-due-input').value;
+      t.priority = document.getElementById('task-priority-input').value;
+      t.status = document.getElementById('task-status-input').value;
+    }
+  } else {
+    tasks.push({
+      id: 'task_' + Date.now(),
+      title,
+      description: document.getElementById('task-desc-input').value.trim(),
+      owner: document.getElementById('task-owner-input').value.trim(),
+      dueDate: document.getElementById('task-due-input').value,
+      priority: document.getElementById('task-priority-input').value,
+      status: document.getElementById('task-status-input').value,
+      createdAt: new Date().toISOString()
+    });
+  }
+  saveTasks();
+  renderKanban();
+  closeTaskModal();
+}
+
+function closeTaskModal(e) {
+  if (e && e.target !== document.getElementById('task-modal')) return;
+  document.getElementById('task-modal').classList.remove('open');
+  editingTaskId = null;
+}
+
+// ── SETUP WIZARD ──────────────────────────────────────────────────────────
+async function checkSetup() {
+  try {
+    const res = await fetch('/api/status');
+    const { ready } = await res.json();
+    if (!ready) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById('page-setup').classList.add('active');
+    }
+  } catch(_) {
+    // Server not running — app loads anyway, errors surface on first action
+  }
+}
+
+async function checkSetupAndContinue() {
+  const errEl = document.getElementById('setup-error');
+  errEl.style.display = 'none';
+  try {
+    const res = await fetch('/api/status');
+    const { ready, method } = await res.json();
+    if (ready) {
+      const label = method === 'cli' ? 'Claude CLI' : 'API key';
+      toast(`Connected via ${label} — ready to go!`);
+      showPage('home');
+    } else {
+      errEl.textContent = 'Claude CLI login not detected yet. Run "claude login" in a terminal, then try again.';
+      errEl.style.display = 'block';
+    }
+  } catch(_) {
+    errEl.textContent = 'Could not reach server — make sure serve.js is running.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function submitSetup() {
+  const key = document.getElementById('setup-key-input').value.trim();
+  const errEl = document.getElementById('setup-error');
+  errEl.style.display = 'none';
+  if (!key.startsWith('sk-ant-')) {
+    errEl.textContent = 'API key should start with sk-ant-';
+    errEl.style.display = 'block';
+    return;
+  }
+  try {
+    const res = await fetch('/api/setup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ apiKey: key })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    toast('API key saved — ready to go!');
+    showPage('home');
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+async function updateApiKey() {
+  const key = document.getElementById('settings-key-input').value.trim();
+  if (!key.startsWith('sk-ant-')) { toast('Key should start with sk-ant-'); return; }
+  try {
+    const res = await fetch('/api/setup', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ apiKey: key })
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    toast('API key updated.');
+    document.getElementById('settings-key-input').value = '';
+  } catch(e) { toast('Error: ' + e.message); }
+}
+
+// ── SETTINGS ──────────────────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const [statusRes, filesRes] = await Promise.all([
+      fetch('/api/status'), fetch('/api/files')
+    ]);
+    const { ready, model } = await statusRes.json();
+    const files = await filesRes.json();
+
+    const modelEl = document.getElementById('server-model');
+    if (modelEl) modelEl.textContent = ready ? `✓ Ready — ${model}` : '⚠ API key not set';
+
+    const listEl = document.getElementById('saved-files-list');
+    if (listEl) {
+      listEl.innerHTML = !files.length
+        ? '<div style="color:var(--text2);font-size:13px;">No saved files yet.</div>'
+        : files.map(f =>
+            `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14" style="flex-shrink:0;color:var(--accent2)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <a href="${f.url}" target="_blank" style="color:var(--text);font-size:12px;text-decoration:none;flex:1;font-family:monospace">${f.name}</a>
+              <a href="${f.url}" download style="color:var(--accent2);font-size:11px;padding:4px 8px;background:var(--surface2);border-radius:4px;">↓ Download</a>
+            </div>`
+          ).join('');
+    }
+  } catch(_) {
+    const modelEl = document.getElementById('server-model');
+    if (modelEl) modelEl.innerHTML = '<span style="color:var(--danger)">Server not reachable — run: node serve.js</span>';
+  }
+}
+
+function clearAllData() {
+  if (!confirm('Delete ALL meetings and tasks? This cannot be undone.')) return;
+  meetings = []; tasks = [];
+  saveMeetings(); saveTasks();
+  toast('All data cleared.');
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function formatDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+function formatSeconds(s) {
+  const m = Math.floor(s/60);
+  return String(m).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+}
+function toast(msg) {
+  document.querySelectorAll('.toast').forEach(e => e.remove());
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+
+// ── THEMES ────────────────────────────────────────────────────────────────
+const THEMES = [
+  { id:'midnight', name:'Midnight',  bg:'#0f1117', surface:'#1a1d27', surface2:'#22263a', border:'#2e3250', accent:'#6c63ff', accent2:'#a78bfa', text:'#e8eaf0', text2:'#9499b7' },
+  { id:'slate',    name:'Slate',     bg:'#0d1117', surface:'#161b22', surface2:'#21262d', border:'#30363d', accent:'#58a6ff', accent2:'#79c0ff', text:'#e6edf3', text2:'#8b949e' },
+  { id:'forest',   name:'Forest',    bg:'#0d1a0f', surface:'#132117', surface2:'#1c2e1e', border:'#2d4a31', accent:'#4ade80', accent2:'#86efac', text:'#dcfce7', text2:'#86efac' },
+  { id:'ocean',    name:'Ocean',     bg:'#030d1a', surface:'#071e38', surface2:'#0c2d52', border:'#1a4a7a', accent:'#38bdf8', accent2:'#7dd3fc', text:'#e0f2fe', text2:'#7dd3fc' },
+  { id:'rose',     name:'Rose',      bg:'#1a0a0d', surface:'#2a1218', surface2:'#3a1a22', border:'#5a2a38', accent:'#fb7185', accent2:'#fda4af', text:'#fff1f2', text2:'#fda4af' },
+  { id:'sand',     name:'Sand',      bg:'#1c1814', surface:'#2a241e', surface2:'#38302a', border:'#504840', accent:'#f59e0b', accent2:'#fbbf24', text:'#fef3c7', text2:'#d6a94a' },
+  { id:'light',    name:'Light',     bg:'#f4f5f7', surface:'#ffffff', surface2:'#f0f2f5', border:'#d1d5db', accent:'#6c63ff', accent2:'#4f46e5', text:'#111827', text2:'#6b7280' },
+  { id:'paper',    name:'Paper',     bg:'#f5f0e8', surface:'#fffdf7', surface2:'#ede8dc', border:'#c8bfa8', accent:'#92400e', accent2:'#b45309', text:'#1c1917', text2:'#78716c' },
+];
+
+function applyTheme(t, save = true) {
+  const r = document.documentElement.style;
+  r.setProperty('--bg',       t.bg);
+  r.setProperty('--surface',  t.surface);
+  r.setProperty('--surface2', t.surface2);
+  r.setProperty('--border',   t.border);
+  r.setProperty('--accent',   t.accent);
+  r.setProperty('--accent2',  t.accent2);
+  r.setProperty('--text',     t.text);
+  r.setProperty('--text2',    t.text2);
+  if (save) localStorage.setItem('mnapp_theme', JSON.stringify(t));
+  // Sync colour pickers
+  const map = { bg:'cp-bg', surface:'cp-surface', accent:'cp-accent', text:'cp-text' };
+  Object.entries(map).forEach(([k,id]) => { const el = document.getElementById(id); if(el) el.value = t[k]; });
+  // Mark active swatch
+  document.querySelectorAll('.theme-swatch').forEach(s => s.classList.toggle('active', s.dataset.id === (t.id||'custom')));
+}
+
+function applyCustomColour(key, value) {
+  document.documentElement.style.setProperty('--' + key, value);
+  // Derive surface2 and border from surface when surface changes
+  if (key === 'surface') {
+    // slightly lighter/darker variants — just shift hex
+    document.documentElement.style.setProperty('--surface2', shiftHex(value, 15));
+    document.documentElement.style.setProperty('--border',   shiftHex(value, 30));
+  }
+  if (key === 'accent') {
+    document.documentElement.style.setProperty('--accent2', shiftHex(value, 40));
+  }
+  const current = getCurrentTheme();
+  current[key] = value;
+  current.id = 'custom';
+  localStorage.setItem('mnapp_theme', JSON.stringify(current));
+  document.querySelectorAll('.theme-swatch').forEach(s => s.classList.toggle('active', s.dataset.id === 'custom'));
+}
+
+function shiftHex(hex, amount) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, ((n >> 16) & 0xff) + amount);
+  const g = Math.min(255, ((n >> 8)  & 0xff) + amount);
+  const b = Math.min(255, ((n)       & 0xff) + amount);
+  return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
+}
+
+function getCurrentTheme() {
+  const s = getComputedStyle(document.documentElement);
+  return {
+    bg:       s.getPropertyValue('--bg').trim(),
+    surface:  s.getPropertyValue('--surface').trim(),
+    surface2: s.getPropertyValue('--surface2').trim(),
+    border:   s.getPropertyValue('--border').trim(),
+    accent:   s.getPropertyValue('--accent').trim(),
+    accent2:  s.getPropertyValue('--accent2').trim(),
+    text:     s.getPropertyValue('--text').trim(),
+    text2:    s.getPropertyValue('--text2').trim(),
+  };
+}
+
+function buildThemeGrid() {
+  const grid = document.getElementById('theme-grid');
+  if (!grid) return;
+  const saved = JSON.parse(localStorage.getItem('mnapp_theme') || 'null');
+  const activeId = saved?.id || 'midnight';
+  grid.innerHTML = THEMES.map(t => `
+    <div class="theme-swatch ${t.id === activeId ? 'active' : ''}" data-id="${t.id}" onclick="applyTheme(${JSON.stringify(t).replace(/"/g,'&quot;')})" title="${t.name}" style="background:${t.bg}">
+      <div class="swatch-bg"></div>
+      <div class="swatch-card" style="background:${t.surface}"></div>
+      <div class="swatch-label" style="background:${t.bg};color:${t.text2}">${t.name}</div>
+    </div>`).join('');
+}
+
+function initTheme() {
+  const saved = JSON.parse(localStorage.getItem('mnapp_theme') || 'null');
+  if (saved) applyTheme(saved, false);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+initTheme();
+renderMeetingsList();
+checkSetup();
+</script>
+</body>
+</html>
