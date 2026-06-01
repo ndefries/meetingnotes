@@ -1201,21 +1201,25 @@ function hideAIUnavailableBanner() {
 // ── SETUP WIZARD ──────────────────────────────────────────────────────────
 async function checkSetup() {
   if (!isLocal) {
-    // Running on GitHub Pages or remote — AI not available, that's fine
     showAIUnavailableBanner();
     return;
   }
-  try {
-    const res = await fetch('/api/status');
-    const { ready } = await res.json();
-    hideAIUnavailableBanner();
-    if (!ready) {
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      document.getElementById('page-setup').classList.add('active');
+  // Retry up to 8 times (8s) — server may still be starting up
+  for (let attempt = 0; attempt < 8; attempt++) {
+    try {
+      const res = await fetch('/api/status');
+      const { ready } = await res.json();
+      hideAIUnavailableBanner();
+      if (!ready) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('page-setup').classList.add('active');
+      }
+      return;
+    } catch(_) {
+      await new Promise(r => setTimeout(r, 1000));
     }
-  } catch(_) {
-    showAIUnavailableBanner();
   }
+  showAIUnavailableBanner();
 }
 
 async function checkSetupAndContinue() {
