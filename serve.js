@@ -236,6 +236,34 @@ ACTIONS_JSON:
     return;
   }
 
+  // GET /api/appdata  — load persisted meetings + tasks
+  if (req.method === 'GET' && url === '/api/appdata') {
+    const dataPath = path.join(root, 'appdata.json');
+    try {
+      const data = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data));
+    } catch (_) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ meetings: [], tasks: [] }));
+    }
+    return;
+  }
+
+  // POST /api/appdata  — save meetings + tasks
+  if (req.method === 'POST' && url === '/api/appdata') {
+    try {
+      const body = await readBody(req);
+      fs.writeFileSync(path.join(root, 'appdata.json'), body, 'utf8');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch(e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
   // GET /api/files
   if (req.method === 'GET' && url === '/api/files') {
     const files = fs.readdirSync(outputDir)

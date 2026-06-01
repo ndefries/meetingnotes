@@ -280,6 +280,14 @@
 
       <div id="summary-file-link" style="display:none;margin-top:12px;padding:8px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);"></div>
 
+      <div class="section-title" style="margin-top:20px;">
+        📄 Full Notes &amp; Transcript
+        <button class="btn btn-ghost btn-sm" onclick="toggleTranscript()" id="transcript-toggle-btn">Show</button>
+      </div>
+      <div id="transcript-full" style="display:none;">
+        <div id="transcript-full-text" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;font-size:13px;line-height:1.8;white-space:pre-wrap;color:var(--text2);max-height:400px;overflow-y:auto;"></div>
+      </div>
+
       <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn btn-primary" onclick="pushToKanban()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
@@ -496,8 +504,38 @@ let interimTranscript = '';
 let dragTaskId = null;
 
 // ── PERSISTENCE ──────────────────────────────────────────────────────────
-function saveMeetings() { localStorage.setItem('mnapp_meetings', JSON.stringify(meetings)); }
-function saveTasks()    { localStorage.setItem('mnapp_tasks',    JSON.stringify(tasks)); }
+let saveTimer = null;
+function saveMeetings() {
+  localStorage.setItem('mnapp_meetings', JSON.stringify(meetings));
+  scheduleSave();
+}
+function saveTasks() {
+  localStorage.setItem('mnapp_tasks', JSON.stringify(tasks));
+  scheduleSave();
+}
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveToServer, 800);
+}
+async function saveToServer() {
+  try {
+    await fetch('/api/appdata', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ meetings, tasks })
+    });
+  } catch(_) {} // silent — localStorage is the fallback
+}
+async function loadFromServer() {
+  try {
+    const res = await fetch('/api/appdata');
+    if (!res.ok) return;
+    const data = await res.json();
+    // Merge server data with localStorage — server wins (more up to date across sessions)
+    if (data.meetings?.length) { meetings = data.meetings; localStorage.setItem('mnapp_meetings', JSON.stringify(meetings)); }
+    if (data.tasks?.length)    { tasks    = data.tasks;    localStorage.setItem('mnapp_tasks',    JSON.stringify(tasks)); }
+  } catch(_) {} // offline or server not started yet — use localStorage
+}
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────
 function showPage(name) {
@@ -859,7 +897,31 @@ function showSummaryPage(meeting) {
     }
   }
 
+  // Full transcript
+  const transcriptEl = document.getElementById('transcript-full-text');
+  const transcriptSection = document.getElementById('transcript-full');
+  const toggleBtn = document.getElementById('transcript-toggle-btn');
+  if (transcriptEl) {
+    const text = meeting.transcript || meeting._rawText || '';
+    if (text) {
+      transcriptEl.textContent = text;
+      toggleBtn.style.display = '';
+    } else {
+      toggleBtn.style.display = 'none';
+    }
+    transcriptSection.style.display = 'none';
+    if (toggleBtn) toggleBtn.textContent = 'Show';
+  }
+
   renderActionsTable(meeting.actions || []);
+}
+
+function toggleTranscript() {
+  const el = document.getElementById('transcript-full');
+  const btn = document.getElementById('transcript-toggle-btn');
+  const visible = el.style.display !== 'none';
+  el.style.display = visible ? 'none' : '';
+  btn.textContent = visible ? 'Show' : 'Hide';
 }
 
 function renderActionsTable(actions) {
@@ -1338,6 +1400,7 @@ function initTheme() {
 initTheme();
 renderMeetingsList();
 checkSetup();
+loadFromServer().then(() => { renderMeetingsList(); renderKanban(); });
 </script>
 </body>
 </html>
