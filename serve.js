@@ -27,22 +27,29 @@ function readBody(req) {
 // Find the claude CLI — handles Windows .cmd wrappers and Unix PATH
 function findClaudeCLI() {
   const isWin = process.platform === 'win32';
-  const npmBin = path.join(process.env.APPDATA || '', 'npm');
-  const candidates = isWin
-    ? [
-        path.join(npmBin, 'claude.cmd'),
-        path.join(npmBin, 'claude'),
-      ]
-    : [
-        '/usr/local/bin/claude',
-        path.join(process.env.HOME || '', '.npm-global', 'bin', 'claude'),
-        'claude',
-      ];
+
+  // Build candidate list — try multiple ways to locate npm bin on Windows
+  const candidates = [];
+  if (isWin) {
+    const appdata = process.env.APPDATA
+      || path.join(require('os').homedir(), 'AppData', 'Roaming');
+    candidates.push(
+      path.join(appdata, 'npm', 'claude.cmd'),
+      path.join(appdata, 'npm', 'claude'),
+    );
+    // Also try PATH via cmd shell
+    candidates.push('claude');
+  } else {
+    candidates.push(
+      '/usr/local/bin/claude',
+      path.join(require('os').homedir(), '.npm-global', 'bin', 'claude'),
+      'claude',
+    );
+  }
 
   for (const c of candidates) {
     try {
-      const useShell = isWin;
-      execFileSync(c, ['--version'], { timeout: 5000, stdio: 'pipe', shell: useShell });
+      execFileSync(c, ['--version'], { timeout: 5000, stdio: 'pipe', shell: isWin });
       return c;
     } catch (_) {}
   }
