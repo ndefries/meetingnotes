@@ -831,7 +831,8 @@ async function summariseWithAI(text, title, meetingId) {
     clearTimeout(timeout);
     if (meeting) {
       meeting.summary = data.summary;
-      meeting.actions = (data.actions || []).map((a, i) => ({ ...a, id: 'act_' + Date.now() + i }));
+      const actionList = Array.isArray(data.actions) ? data.actions : (data.actions ? [data.actions] : []);
+      meeting.actions = actionList.map((a, i) => ({ ...a, id: 'act_' + Date.now() + i }));
       meeting._savedFile = data.filename;
       meeting._rawText = undefined;
       saveMeetings();

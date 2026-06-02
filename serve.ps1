@@ -174,7 +174,13 @@ while ($listener.IsListening) {
             $filename   = Save-MeetingFile $title $date $duration $transcript $parsed.summary $parsed.actions
             Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Done -> meetings/$filename" -ForegroundColor Green
 
-            $result = @{ summary = $parsed.summary; actions = $parsed.actions; filename = $filename } | ConvertTo-Json -Depth 10
+            # PS 5.1 unwraps single-element arrays to a bare object in JSON; force an array so the client's .map() works
+            $actionsArr  = @($parsed.actions)
+            $actionsJson = if ($actionsArr.Count) { ConvertTo-Json $actionsArr -Depth 10 } else { '[]' }
+            if ($actionsJson -notmatch '^\s*\[') { $actionsJson = "[$actionsJson]" }
+            $summaryJson  = ($parsed.summary | ConvertTo-Json -Depth 10)
+            $filenameJson = ($filename | ConvertTo-Json -Depth 10)
+            $result = "{`"summary`":$summaryJson,`"actions`":$actionsJson,`"filename`":$filenameJson}"
             $bytes  = [System.Text.Encoding]::UTF8.GetBytes($result)
             $res.ContentType = "application/json"
             $res.OutputStream.Write($bytes, 0, $bytes.Length)

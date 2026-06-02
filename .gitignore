@@ -1,4 +1,5 @@
 node_modules/
 meetings/
+appdata.json
 config.json
 package-lock.json
