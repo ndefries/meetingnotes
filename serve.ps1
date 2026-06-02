@@ -10,17 +10,24 @@ if (-not (Test-Path $meetingsDir)) { New-Item -ItemType Directory -Path $meeting
 
 # Locate claude.exe once at startup and cache it
 function Find-ClaudeExe {
-    # Try APPDATA path (works for current user)
-    $appdata = [System.Environment]::GetFolderPath('ApplicationData')
-    $claudeCodeDir = Join-Path $appdata "Claude\claude-code"
-    if (Test-Path $claudeCodeDir) {
-        $exe = Get-ChildItem -Path $claudeCodeDir -Recurse -Filter "claude.exe" -ErrorAction SilentlyContinue |
-               Sort-Object LastWriteTime -Descending | Select-Object -First 1
-        if ($exe) { return $exe.FullName }
+    # Try known fixed paths first (most reliable on work machines)
+    $knownPaths = @(
+        "C:\Users\DefriesN\AppData\Roaming\Claude\claude-code\2.1.156\claude.exe",
+        "C:\Users\DefriesN\AppData\Roaming\Claude\claude-code\2.1.149\claude.exe"
+    )
+    foreach ($p in $knownPaths) {
+        if (Test-Path $p) { return $p }
     }
-    # Fallback: known fixed path
-    $known = "C:\Users\DefriesN\AppData\Roaming\Claude\claude-code\2.1.156\claude.exe"
-    if (Test-Path $known) { return $known }
+    # Dynamic search fallback
+    foreach ($appdata in @($env:APPDATA, "C:\Users\DefriesN\AppData\Roaming")) {
+        if (-not $appdata) { continue }
+        $dir = Join-Path $appdata "Claude\claude-code"
+        if (Test-Path $dir) {
+            $exe = Get-ChildItem -Path $dir -Recurse -Filter "claude.exe" -ErrorAction SilentlyContinue |
+                   Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($exe) { return $exe.FullName }
+        }
+    }
     return $null
 }
 
