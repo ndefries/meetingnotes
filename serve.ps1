@@ -53,7 +53,7 @@ function Invoke-ClaudeAI($prompt) {
 
     $stdout = $proc.StandardOutput.ReadToEnd()
     $stderr = $proc.StandardError.ReadToEnd()
-    $proc.WaitForExit(120000)
+    [void]$proc.WaitForExit(120000)
 
     if ($proc.ExitCode -ne 0) { throw $stderr }
     return $stdout.Trim()
