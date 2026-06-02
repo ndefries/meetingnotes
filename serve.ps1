@@ -8,18 +8,27 @@ $appdataPath = Join-Path $root "appdata.json"
 
 if (-not (Test-Path $meetingsDir)) { New-Item -ItemType Directory -Path $meetingsDir | Out-Null }
 
+# Locate claude.exe once at startup and cache it
 function Find-ClaudeExe {
-    $claudeCodeDir = Join-Path $env:APPDATA "Claude\claude-code"
+    # Try APPDATA path (works for current user)
+    $appdata = [System.Environment]::GetFolderPath('ApplicationData')
+    $claudeCodeDir = Join-Path $appdata "Claude\claude-code"
     if (Test-Path $claudeCodeDir) {
         $exe = Get-ChildItem -Path $claudeCodeDir -Recurse -Filter "claude.exe" -ErrorAction SilentlyContinue |
                Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if ($exe) { return $exe.FullName }
     }
+    # Fallback: known fixed path
+    $known = "C:\Users\DefriesN\AppData\Roaming\Claude\claude-code\2.1.156\claude.exe"
+    if (Test-Path $known) { return $known }
     return $null
 }
 
+# Cache at startup so HTTP handler doesn't re-search every request
+$script:claudeExePath = Find-ClaudeExe
+
 function Invoke-ClaudeAI($prompt) {
-    $claudeExe = Find-ClaudeExe
+    $claudeExe = $script:claudeExePath
     if (-not $claudeExe) { throw "claude_not_found" }
 
     $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -62,14 +71,16 @@ function Save-MeetingFile($title, $date, $duration, $transcript, $summary, $acti
     $filename = "$dateStr-$safe.md"
     $filepath = Join-Path $meetingsDir $filename
 
-    $actionRows = if ($actions -and $actions.Count) {
-        ($actions | ForEach-Object {
+    if ($actions -and $actions.Count) {
+        $actionRows = ($actions | ForEach-Object {
             $owner    = if ($_.owner)    { $_.owner }    else { 'TBC' }
             $dueDate  = if ($_.dueDate)  { $_.dueDate }  else { 'TBC' }
             $priority = if ($_.priority) { $_.priority } else { 'medium' }
             "| $($_.action) | $owner | $dueDate | $priority |"
         }) -join "`n"
-    } else { "| No actions identified | — | — | — |" }
+    } else {
+        $actionRows = "| No actions identified | N/A | N/A | N/A |"
+    }
 
     $dur = if ($duration) { $duration } else { 'N/A' }
 
@@ -130,11 +141,13 @@ while ($listener.IsListening) {
     try {
         # ── GET /api/status ──────────────────────────────────────────────────
         if ($req.HttpMethod -eq "GET" -and $url -eq "/api/status") {
-            $cli    = Find-ClaudeExe
-            $method = if ($cli) { "cli" } else { "none" }
-            $ready  = if ($cli) { $true } else { $false }
-            $json   = "{`"ready`":$(($ready.ToString()).ToLower()),`"method`":`"$method`",`"model`":`"claude-sonnet-4-6`"}"
-            $bytes  = [System.Text.Encoding]::UTF8.GetBytes($json)
+            $cli   = $script:claudeExePath
+            if ($cli) {
+                $json = '{"ready":true,"method":"cli","model":"claude-sonnet-4-6"}'
+            } else {
+                $json = '{"ready":false,"method":"none","model":"claude-sonnet-4-6"}'
+            }
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
             $res.ContentType = "application/json"
             $res.OutputStream.Write($bytes, 0, $bytes.Length)
         }
