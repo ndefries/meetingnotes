@@ -1221,22 +1221,18 @@ async function checkSetup() {
     );
     return;
   }
-  // Retry up to 15 times (15s) — server may still be starting
+  // On localhost: wait for server then go straight to home — no setup wizard needed
   for (let attempt = 0; attempt < 15; attempt++) {
     try {
       const res = await fetch('/api/status');
-      const { ready } = await res.json();
+      await res.json();
       hideAIUnavailableBanner();
-      if (!ready) {
-        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-        document.getElementById('page-setup').classList.add('active');
-      }
+      showPage('home');
       return;
     } catch(_) {
       await new Promise(r => setTimeout(r, 1000));
     }
   }
-  // Server never responded — show retry button
   showAIUnavailableBanner(
     'Server is taking a while to start. Double-click <strong>Meeting Notes</strong> on your desktop if you haven\'t already, then click Retry.',
     true
