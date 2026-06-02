@@ -1,4 +1,4 @@
-# Meeting Notes - PowerShell HTTP server (no Node.js required)
+﻿# Meeting Notes - PowerShell HTTP server (no Node.js required)
 # Uses the Claude Code app already installed on this machine
 
 $root = $PSScriptRoot
@@ -12,8 +12,8 @@ if (-not (Test-Path $meetingsDir)) { New-Item -ItemType Directory -Path $meeting
 function Find-ClaudeExe {
     # Try known fixed paths first (most reliable on work machines)
     $knownPaths = @(
-        "C:\Users\DefriesN\AppData\Roaming\Claude\claude-code\2.1.156\claude.exe",
-        "C:\Users\DefriesN\AppData\Roaming\Claude\claude-code\2.1.149\claude.exe"
+        "C:\Users\DefriesN\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude-code\2.1.156\claude.exe",
+        "C:\Users\DefriesN\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roaming\Claude\claude-code\2.1.149\claude.exe"
     )
     foreach ($p in $knownPaths) {
         if (Test-Path $p) { return $p }
@@ -146,7 +146,7 @@ while ($listener.IsListening) {
     }
 
     try {
-        # ── GET /api/status ──────────────────────────────────────────────────
+        # â”€â”€ GET /api/status â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if ($req.HttpMethod -eq "GET" -and $url -eq "/api/status") {
             $cli   = $script:claudeExePath
             if ($cli) {
@@ -158,7 +158,7 @@ while ($listener.IsListening) {
             $res.ContentType = "application/json"
             $res.OutputStream.Write($bytes, 0, $bytes.Length)
         }
-        # ── POST /api/summarise ──────────────────────────────────────────────
+        # â”€â”€ POST /api/summarise â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         elseif ($req.HttpMethod -eq "POST" -and $url -eq "/api/summarise") {
             $text       = $body.text
             $title      = if ($body.title)    { $body.title }    else { "Untitled Meeting" }
@@ -179,21 +179,21 @@ while ($listener.IsListening) {
             $res.ContentType = "application/json"
             $res.OutputStream.Write($bytes, 0, $bytes.Length)
         }
-        # ── GET /api/appdata ─────────────────────────────────────────────────
+        # â”€â”€ GET /api/appdata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         elseif ($req.HttpMethod -eq "GET" -and $url -eq "/api/appdata") {
             $data  = if (Test-Path $appdataPath) { Get-Content $appdataPath -Raw -Encoding UTF8 } else { '{"meetings":[],"tasks":[]}' }
             $bytes = [System.Text.Encoding]::UTF8.GetBytes($data)
             $res.ContentType = "application/json"
             $res.OutputStream.Write($bytes, 0, $bytes.Length)
         }
-        # ── POST /api/appdata ────────────────────────────────────────────────
+        # â”€â”€ POST /api/appdata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         elseif ($req.HttpMethod -eq "POST" -and $url -eq "/api/appdata") {
             [System.IO.File]::WriteAllText($appdataPath, $bodyStr, [System.Text.Encoding]::UTF8)
             $bytes = [System.Text.Encoding]::UTF8.GetBytes('{"ok":true}')
             $res.ContentType = "application/json"
             $res.OutputStream.Write($bytes, 0, $bytes.Length)
         }
-        # ── GET /api/files ───────────────────────────────────────────────────
+        # â”€â”€ GET /api/files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         elseif ($req.HttpMethod -eq "GET" -and $url -eq "/api/files") {
             $files = @(Get-ChildItem $meetingsDir -Filter "*.md" -ErrorAction SilentlyContinue |
                        Sort-Object Name -Descending |
@@ -204,7 +204,7 @@ while ($listener.IsListening) {
             $res.ContentType = "application/json"
             $res.OutputStream.Write($bytes, 0, $bytes.Length)
         }
-        # ── Static files ─────────────────────────────────────────────────────
+        # â”€â”€ Static files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         else {
             $filePath = if ($url -eq "/") { "meeting-notes.html" } else { $url.TrimStart('/') }
             $fullPath = Join-Path $root $filePath
@@ -233,3 +233,4 @@ while ($listener.IsListening) {
 }
 
 $listener.Stop()
+
